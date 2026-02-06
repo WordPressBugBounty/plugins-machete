@@ -31,6 +31,8 @@ comments_reply_feature
 empty_trash_soon
 capital_P_dangit
 medium_large_size
+1536x1536_size
+2048x2048_size
 comment_autolinks
 disable_login_langs
 disable_editor
@@ -41,6 +43,7 @@ xmlrpc
 jquery-migrate
 oembed_scripts
 jpeg_quality
+big_image_scaling
 gutenberg_css
 disable_global_css
 */
@@ -237,7 +240,8 @@ if ( in_array( 'medium_large_size', $this->settings, true ) ) {
 	add_filter(
 		'intermediate_image_sizes',
 		function ( $sizes ) {
-			return array_diff( $sizes, array( 'medium_large' ) );
+			unset( $sizes['medium_large'] );
+			return $sizes;
 		},
 		100
 	);
@@ -245,7 +249,8 @@ if ( in_array( 'medium_large_size', $this->settings, true ) ) {
 	add_filter(
 		'intermediate_image_sizes_advanced',
 		function ( $sizes ) {
-			return array_diff( $sizes, array( 'medium_large' ) );
+			unset( $sizes['medium_large'] );
+			return $sizes;
 		},
 		100
 	);
@@ -253,6 +258,43 @@ if ( in_array( 'medium_large_size', $this->settings, true ) ) {
 	add_filter( 'pre_option_medium_large_size_w', '__return_zero' );
 	add_filter( 'pre_option_medium_large_size_h', '__return_zero' );
 }
+
+if ( in_array( '1536x1536_size', $this->settings, true ) ) {
+	remove_image_size( '1536x1536' );
+	add_filter(
+		'intermediate_image_sizes',
+		function ( $sizes ) {
+			unset( $sizes['1536x1536'] );
+			return $sizes;
+		}
+	);
+	add_filter(
+		'intermediate_image_sizes_advanced',
+		function ( $sizes ) {
+			unset( $sizes['1536x1536'] );
+			return $sizes;
+		}
+	);
+}
+
+if ( in_array( '2048x2048_size', $this->settings, true ) ) {
+	remove_image_size( '2048x2048' );
+	add_filter(
+		'intermediate_image_sizes',
+		function ( $sizes ) {
+			unset( $sizes['2048x2048'] );
+			return $sizes;
+		}
+	);
+	add_filter(
+		'intermediate_image_sizes_advanced',
+		function ( $sizes ) {
+			unset( $sizes['2048x2048'] );
+			return $sizes;
+		}
+	);
+}
+
 
 if ( in_array( 'comment_autolinks', $this->settings, true ) && ! is_admin() ) {
 	remove_filter( 'comment_text', 'make_clickable', 9 );
@@ -277,10 +319,6 @@ if ( in_array( 'json_api', $this->settings, true ) ) {
 		add_filter( 'embed_oembed_discover', '__return_false' );
 		remove_filter( 'oembed_dataparse', 'wp_filter_oembed_result', 10 );
 		remove_action( 'template_redirect', 'rest_output_link_header', 11, 0 );
-
-		// disable json_api.
-		add_filter( 'json_enabled', '__return_false' );
-		add_filter( 'json_jsonp_enabled', '__return_false' );
 	}
 
 	// Require Authentication for All Reque​sts.
@@ -352,6 +390,13 @@ if ( in_array( 'jpeg_quality', $this->settings, true ) ) {
 			$arg = null; // To prevent WPCS warning.
 			return 72;
 		}
+	);
+}
+
+if ( in_array( 'big_image_scaling', $this->settings, true ) ) {
+	add_filter(
+		'big_image_size_threshold',
+		'__return_false'
 	);
 }
 

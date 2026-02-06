@@ -25,11 +25,8 @@ class MACHETE_MAINTENANCE_MODULE extends MACHETE_MODULE {
 	public function __construct() {
 		$this->init(
 			array(
-				'slug'        => 'maintenance',
-				'title'       => __( 'Maintenance Mode', 'machete' ),
-				'full_title'  => __( 'Maintenance Mode', 'machete' ),
-				'description' => __( 'Customizable maintenance page to close your site during updates or development. It has a "magic link" to grant temporary access.', 'machete' ),
-				'role'        => 'publish_posts', // targeting Author role.
+				'slug' => 'maintenance',
+				'role' => 'publish_posts', // targeting Author role.
 			)
 		);
 		$this->default_settings = array(
@@ -57,6 +54,8 @@ class MACHETE_MAINTENANCE_MODULE extends MACHETE_MODULE {
 	 * Adds a maintenance status button to the admin bar
 	 */
 	public function admin() {
+
+		require $this->path . 'i18n.php';
 
 		$this->read_settings();
 		// The maintenance token should be saved as soon as possible.
