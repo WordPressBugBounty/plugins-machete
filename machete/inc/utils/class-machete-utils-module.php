@@ -55,7 +55,7 @@ class MACHETE_UTILS_MODULE extends MACHETE_MODULE {
 	 */
 	public function admin() {
 
-		require $this->path . 'i18n.php';
+		$this->load_i18n();
 
 		$this->read_settings();
 
@@ -245,7 +245,7 @@ class MACHETE_UTILS_MODULE extends MACHETE_MODULE {
 
 		if ( '' !== $tracking_script_js ) {
 			// cheap and dirty pseudo-random filename generation.
-			$settings['tracking_filename'] = 'tracking_mct4_' . strtolower( substr( MD5( time() ), 0, 8 ) ) . '.js';
+			$settings['tracking_filename'] = 'tracking_mct4_' . bin2hex( random_bytes( 4 ) ) . '.js';
 
 			if ( ! $this->put_contents( MACHETE_DATA_PATH . $settings['tracking_filename'], $tracking_script_js ) ) {
 				if ( ! $silent ) {
@@ -358,8 +358,7 @@ class MACHETE_UTILS_MODULE extends MACHETE_MODULE {
 	public function enqueue_tracking_waiting_cookies() {
 		wp_enqueue_script(
 			'machete-load-tracking',
-			//$this->baseurl . 'js/gdpr_load_tracking.min.js',
-			$this->baseurl . 'js/gdpr_load_tracking.js',
+			$this->baseurl . 'js/gdpr_load_tracking.min.js',
 			array(),
 			MACHETE_VERSION,
 			false
