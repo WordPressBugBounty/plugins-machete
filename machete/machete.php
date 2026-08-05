@@ -3,7 +3,7 @@
  * Plugin Name: Machete
  * Plugin URI: https://machetewp.com
  * Description: Machete is a lean and simple suite of tools that makes WordPress development easier: cookie bar, tracking codes, custom code editor, header cleanup, post and page cloner
- * Version: 5.2
+ * Version: 5.3
  * Requires at least: 5.9
  * Requires PHP: 7.4
  * Author: Nilo Velez
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'MACHETE_VERSION', '5.2' );
+define( 'MACHETE_VERSION', '5.3' );
 
 $machete_get_upload_dir = wp_upload_dir();
 define( 'MACHETE_BASE_PATH', plugin_dir_path( __FILE__ ) );
@@ -57,15 +57,30 @@ require MACHETE_BASE_PATH . 'inc/social/class-machete-social-module.php';
 require MACHETE_BASE_PATH . 'inc/woocommerce/class-machete-woocommerce-module.php';
 require MACHETE_BASE_PATH . 'inc/powertools/class-machete-powertools-module.php';
 
-// Management of disabled modules.
-$machete_disabled_modules = get_option( 'machete_disabled_modules', array() );
-foreach ( $machete_disabled_modules as $machete_module ) {
-	if (
-		isset( $machete->modules[ $machete_module ] ) &&
-		$machete->modules[ $machete_module ]->params['can_be_disabled']
-	) {
-		$machete->modules[ $machete_module ]->params['is_active'] = false;
+// Management of enabled modules.
+if ( null === get_option( 'machete_enabled_modules', null ) ) {
+	$machete_enabled_modules = array();
+	foreach ( $machete->modules as $machete_module ) {
+		if ( ! $machete_module->params['can_be_disabled'] ) {
+			continue;
+		}
+		if ( $machete_module->params['is_active_default'] ) {
+			$machete_enabled_modules[] = $machete_module->params['slug'];
+		}
 	}
+	add_option( 'machete_enabled_modules', $machete_enabled_modules );
+}
+
+$machete_enabled_modules = get_option( 'machete_enabled_modules', array() );
+foreach ( $machete->modules as $machete_module ) {
+	if ( ! $machete_module->params['can_be_disabled'] ) {
+		continue;
+	}
+	$machete_module->params['is_active'] = in_array(
+		$machete_module->params['slug'],
+		$machete_enabled_modules,
+		true
+	);
 }
 
 // Main init.
@@ -73,14 +88,6 @@ add_action(
 	'init',
 	function () {
 		global $machete;
-
-		load_plugin_textdomain( 'machete', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
-
-		// Manage of external modules.
-		if ( defined( 'MACHETE_POWERTOOLS_INIT' ) ) {
-			$machete->modules['powertools']->params['is_active']   = true;
-			$machete->modules['powertools']->params['description'] = __( 'Machete PowerTools are now active! Enjoy your new toy!', 'machete' );
-		}
 
 		// Disable WooCommerce module if WooCommece is active.
 		if ( ! function_exists( 'is_woocommerce' ) ) {

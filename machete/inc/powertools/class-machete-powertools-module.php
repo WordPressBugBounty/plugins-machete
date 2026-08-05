@@ -25,7 +25,8 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 			array(
 				'slug'            => 'powertools',
 				'is_active'       => false,
-				'can_be_disabled' => false,
+				'has_warning'     => true,
+				'can_be_disabled' => true,
 			)
 		);
 
@@ -37,7 +38,9 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 			'defer_all_scripts'   => array(),
 			'disable_feeds'       => array(),
 			'enable_svg'          => array(),
-			'disable_search'      => array(),
+			'disable_search'              => array(),
+			'show_admin_ids'              => array(),
+			'disable_admin_bar_frontend'  => array(),
 		);
 	}
 	/**
@@ -73,6 +76,15 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 				case 'purge_transients':
 					$this->purge_transients();
 					break;
+				case 'purge_post_revisions':
+					$this->purge_post_revisions();
+					break;
+				case 'purge_orphaned_meta':
+					$this->purge_orphaned_meta();
+					break;
+				case 'purge_expired_cron':
+					$this->purge_expired_cron();
+					break;
 				case 'flush_rewrites':
 					$this->flush_rewrite_rules();
 					break;
@@ -93,7 +105,38 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 			require $this->path . 'powertools.php';
 		}
 
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_styles' ) );
+
 		add_action( 'admin_menu', array( $this, 'register_sub_menu' ) );
+	}
+
+	/**
+	 * Enqueues PowerTools admin styles on the module page and when list-table options are active.
+	 *
+	 * @param string $hook_suffix Current admin page hook suffix.
+	 */
+	public function enqueue_admin_styles( $hook_suffix ) {
+		$is_powertools_page = ( 'machete_page_machete-powertools' === $hook_suffix );
+
+		if ( ! $is_powertools_page && ! $this->needs_admin_styles() ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'machete-powertools-admin',
+			MACHETE_BASE_URL . 'inc/powertools/css/admin.css',
+			array(),
+			MACHETE_VERSION
+		);
+	}
+
+	/**
+	 * Whether any active option needs the PowerTools admin stylesheet.
+	 *
+	 * @return bool
+	 */
+	private function needs_admin_styles() {
+		return in_array( 'show_admin_ids', $this->settings, true );
 	}
 	/**
 	 * Saves options to database
@@ -164,7 +207,9 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 	private function purge_transients() {
 		global $wpdb;
 
-		$rows = $wpdb->query(
+		$count = $this->count_expired_transients();
+
+		$wpdb->query(
 			$wpdb->prepare(
 				"DELETE a, b FROM $wpdb->options a, $wpdb->options b
 				WHERE a.option_name LIKE %s
@@ -175,9 +220,9 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 				$wpdb->esc_like( '_transient_timeout_' ) . '%',
 				time()
 			)
-		); // phpcs: cache ok, db call ok.
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
-		$rows2 = $wpdb->query(
+		$wpdb->query(
 			$wpdb->prepare(
 				"DELETE a, b FROM $wpdb->options a, $wpdb->options b
 				WHERE a.option_name LIKE %s
@@ -188,28 +233,181 @@ class MACHETE_POWERTOOLS_MODULE extends MACHETE_MODULE {
 				$wpdb->esc_like( '_site_transient_timeout_' ) . '%',
 				time()
 			)
-		); // phpcs: cache ok, db call ok.
-		// translators: $d number of deleted transsients.
-		$this->notice( sprintf( __( '%d Transients Rows Cleared', 'machete' ), $rows + $rows2 ), 'success' );
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		// translators: %s: number of deleted expired transients.
+		$this->notice( sprintf( _n( '%s expired transient cleared.', '%s expired transients cleared.', $count, 'machete' ), number_format_i18n( $count ) ), 'success' );
 		return true;
 	}
 
 	/**
-	 * Deletes all unused post revisions.
+	 * Returns the number of expired transients.
+	 *
+	 * @return int
+	 */
+	public function count_expired_transients() {
+		global $wpdb;
+
+		$time = time();
+
+		$count = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM $wpdb->options a, $wpdb->options b
+				WHERE a.option_name LIKE %s
+				AND a.option_name NOT LIKE %s
+				AND b.option_name = CONCAT( '_transient_timeout_', SUBSTRING( a.option_name, 12 ) )
+				AND b.option_value < %d",
+				$wpdb->esc_like( '_transient_' ) . '%',
+				$wpdb->esc_like( '_transient_timeout_' ) . '%',
+				$time
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		$count += (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM $wpdb->options a, $wpdb->options b
+				WHERE a.option_name LIKE %s
+				AND a.option_name NOT LIKE %s
+				AND b.option_name = CONCAT( '_site_transient_timeout_', SUBSTRING( a.option_name, 17 ) )
+				AND b.option_value < %d",
+				$wpdb->esc_like( '_site_transient_' ) . '%',
+				$wpdb->esc_like( '_site_transient_timeout_' ) . '%',
+				$time
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		return $count;
+	}
+
+	/**
+	 * Returns the number of post revisions.
+	 *
+	 * @return int
+	 */
+	public function count_post_revisions() {
+		global $wpdb;
+
+		return (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM $wpdb->posts WHERE post_type = 'revision'"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	}
+
+	/**
+	 * Returns the number of orphaned postmeta rows.
+	 *
+	 * @return int
+	 */
+	public function count_orphaned_postmeta() {
+		global $wpdb;
+
+		return (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM $wpdb->postmeta pm
+			LEFT JOIN $wpdb->posts p ON p.ID = pm.post_id
+			WHERE p.ID IS NULL"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	}
+
+	/**
+	 * Returns the number of expired cron events.
+	 *
+	 * @return int
+	 */
+	public function count_expired_cron_events() {
+		if ( ! function_exists( '_get_cron_array' ) ) {
+			require_once ABSPATH . 'wp-includes/cron.php';
+		}
+
+		$cron  = _get_cron_array();
+		$count = 0;
+		$time  = time();
+
+		if ( empty( $cron ) ) {
+			return 0;
+		}
+
+		foreach ( $cron as $timestamp => $hooks ) {
+			if ( (int) $timestamp >= $time ) {
+				continue;
+			}
+			foreach ( $hooks as $events ) {
+				$count += count( $events );
+			}
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Deletes all post revisions and their related meta/term rows.
 	 */
 	private function purge_post_revisions() {
 		global $wpdb;
 
+		$wpdb->query(
+			"DELETE pm FROM $wpdb->postmeta pm
+			INNER JOIN $wpdb->posts p ON pm.post_id = p.ID
+			WHERE p.post_type = 'revision'"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		$wpdb->query(
+			"DELETE tr FROM $wpdb->term_relationships tr
+			INNER JOIN $wpdb->posts p ON tr.object_id = p.ID
+			WHERE p.post_type = 'revision'"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
 		$rows = $wpdb->query(
-			"DELETE a,b,c
-			FROM wp_posts a
-			WHERE a.post_type = 'revision'
-			LEFT JOIN wp_term_relationships b
-			ON (a.ID = b.object_id)
-			LEFT JOIN wp_postmeta c ON (a.ID = c.post_id);"
-		);  // phpcs: cache ok, db call ok.
-		// translators: $d number of deleted post revisions.
-		$this->notice( sprintf( _n( 'Success! %s Post revision deleted.', 'Success! %s Post revisions deleted.', $rows, 'machete' ), $rows ), 'success' );
+			"DELETE FROM $wpdb->posts WHERE post_type = 'revision'"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		// translators: %s: number of deleted post revisions.
+		$this->notice( sprintf( _n( 'Success! %s post revision deleted.', 'Success! %s post revisions deleted.', $rows, 'machete' ), number_format_i18n( $rows ) ), 'success' );
+		return true;
+	}
+
+	/**
+	 * Deletes postmeta rows whose post no longer exists.
+	 */
+	private function purge_orphaned_meta() {
+		global $wpdb;
+
+		$rows = $wpdb->query(
+			"DELETE pm FROM $wpdb->postmeta pm
+			LEFT JOIN $wpdb->posts p ON p.ID = pm.post_id
+			WHERE p.ID IS NULL"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		// translators: %s: number of deleted postmeta rows.
+		$this->notice( sprintf( _n( '%s orphaned postmeta row deleted.', '%s orphaned postmeta rows deleted.', $rows, 'machete' ), number_format_i18n( $rows ) ), 'success' );
+		return true;
+	}
+
+	/**
+	 * Removes cron events scheduled in the past.
+	 */
+	private function purge_expired_cron() {
+		if ( ! function_exists( '_get_cron_array' ) ) {
+			require_once ABSPATH . 'wp-includes/cron.php';
+		}
+
+		$cron    = _get_cron_array();
+		$removed = 0;
+		$time    = time();
+
+		if ( ! empty( $cron ) ) {
+			foreach ( $cron as $timestamp => $hooks ) {
+				if ( (int) $timestamp >= $time ) {
+					continue;
+				}
+				foreach ( $hooks as $events ) {
+					$removed += count( $events );
+				}
+				unset( $cron[ $timestamp ] );
+			}
+			_set_cron_array( $cron );
+		}
+
+		// translators: %s: number of removed cron events.
+		$this->notice( sprintf( _n( '%s expired cron event removed.', '%s expired cron events removed.', $removed, 'machete' ), number_format_i18n( $removed ) ), 'success' );
 		return true;
 	}
 	/**

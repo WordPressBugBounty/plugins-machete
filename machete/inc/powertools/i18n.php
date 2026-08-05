@@ -10,14 +10,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$this->params['title']       = '<span style="color: #ff9900">' . __( 'PowerTools', 'machete' ) . '</span>';
-$this->params['full_title']  = __( 'Machete PowerTools', 'machete' );
-$this->params['description'] = __( 'Machete PowerTools is a free upgrade module targeted at WordPress developers and power users.', 'machete' );
+$this->params['title']              = '<span style="color: #ff9900">' . __( 'PowerTools', 'machete' ) . '</span>';
+$this->params['full_title']         = __( 'Machete PowerTools', 'machete' );
+$this->params['description']        = __( 'Advanced tools for WordPress developers and power users. Disabled by default.', 'machete' );
+$this->params['activation_warning'] = __( 'This module contains options that can break your site. Only use them if you know what you are doing.', 'machete' );
 
 /* Powertools options array */
 $this->powertools_array['widget_shortcodes'] = array(
 	'title'       => __( 'Shortcodes in Widgets', 'machete' ),
-	'description' => __( 'Enables the use of shortcodes in text/html widgets. It may slightly impact performance', 'machete' ),
+	'description' => __( 'Enables shortcodes in classic Text and Custom HTML widgets.', 'machete' ) . '<br>' . __( 'For block-based widget areas (WordPress 5.8+), use the Shortcode block instead. Only needed on legacy themes and classic widget setups.', 'machete' ),
 );
 
 $this->powertools_array['rss_thumbnails'] = array(
@@ -53,5 +54,15 @@ $this->powertools_array['enable_svg'] = array(
 
 $this->powertools_array['disable_search'] = array(
 	'title'       => __( 'Disable search', 'machete' ),
-	'description' => __( 'Disables the public search from WordPress', 'machete' ),
+	'description' => __( 'Disables public search on the frontend. Search URLs return a 404, search forms are hidden, and the Search widget is removed from widget areas.', 'machete' ) . '<br>' . __( 'Does not affect admin search. Useful for brochure sites and layouts that do not need public search.', 'machete' ),
+);
+
+$this->powertools_array['show_admin_ids'] = array(
+	'title'       => __( 'Show IDs in admin lists', 'machete' ),
+	'description' => __( 'Adds an ID column to post, page, taxonomy and user list screens in the WordPress admin.', 'machete' ),
+);
+
+$this->powertools_array['disable_admin_bar_frontend'] = array(
+	'title'       => __( 'Disable admin bar on frontend', 'machete' ),
+	'description' => __( 'Hides the WordPress admin bar on the frontend for all users except administrators.', 'machete' ),
 );
